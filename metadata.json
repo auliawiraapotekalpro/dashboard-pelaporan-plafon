@@ -1,0 +1,7 @@
+{
+  "name": "Dashboard Pelaporan Plafon",
+  "description": "A comprehensive dashboard for reporting and monitoring ceiling leaks, featuring dedicated views for shop reporters and maintenance administrators.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
