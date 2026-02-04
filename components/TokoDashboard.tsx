@@ -66,30 +66,25 @@ const TokoDashboard: React.FC<TokoDashboardProps> = ({ user, reports, onAddRepor
     }
   };
 
-  const handleOpenPhoto = (photoUrls: string[] | string) => {
+  const getPhotoUrls = (photoData: string[] | string): string[] => {
     let urls: string[] = [];
     try {
-      if (Array.isArray(photoUrls)) {
-        urls = photoUrls;
-      } else if (typeof photoUrls === 'string') {
-        if (photoUrls.startsWith('[')) {
-          urls = JSON.parse(photoUrls);
-        } else if (photoUrls !== '-' && photoUrls !== '') {
-          urls = [photoUrls];
+      if (Array.isArray(photoData)) {
+        urls = photoData;
+      } else if (typeof photoData === 'string') {
+        if (photoData.startsWith('[') || photoData.startsWith('["')) {
+          urls = JSON.parse(photoData);
+        } else if (photoData !== '-' && photoData !== '') {
+          urls = [photoData];
         }
       }
     } catch (e) {
-      if (typeof photoUrls === 'string' && photoUrls !== '-' && photoUrls !== '') {
-        urls = [photoUrls];
+      if (typeof photoData === 'string' && photoData !== '-' && photoData !== '') {
+        urls = [photoData];
       }
     }
-
-    const validUrl = urls.find(u => u && u.startsWith('http'));
-    if (validUrl) {
-      window.open(validUrl, '_blank');
-    } else {
-      alert("Foto sedang diproses atau tidak tersedia di Drive.");
-    }
+    // Filter out potential base64 strings if showing in table, though ideally table shows only Drive URLs
+    return urls.filter(u => u && (u.startsWith('http') || u.startsWith('data:')));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -328,49 +323,57 @@ const TokoDashboard: React.FC<TokoDashboardProps> = ({ user, reports, onAddRepor
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {reports.map((report) => (
-                        <tr key={report.id} className="hover:bg-slate-50/50 transition duration-150">
-                          <td className="px-6 py-6 font-bold text-[#5850ec] text-sm whitespace-nowrap">{report.id}</td>
-                          <td className="px-6 py-6">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border w-fit ${report.status === ReportStatus.PENDING ? 'bg-[#fff7ed] border-[#ffedd5]' : report.status === ReportStatus.ON_PROGRESS ? 'bg-blue-50 border-blue-100' : 'bg-green-50 border-green-100'}`}>
-                               <svg className={`w-3.5 h-3.5 ${report.status === ReportStatus.PENDING ? 'text-[#f97316]' : report.status === ReportStatus.ON_PROGRESS ? 'text-blue-500' : 'text-green-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                               <span className={`text-[10px] font-black uppercase tracking-wider ${report.status === ReportStatus.PENDING ? 'text-[#f97316]' : report.status === ReportStatus.ON_PROGRESS ? 'text-blue-500' : 'text-green-500'}`}>{report.status}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 text-sm font-semibold text-slate-500 whitespace-nowrap">{report.date}</td>
-                          <td className="px-6 py-6 font-black text-slate-800 text-sm max-w-[200px] leading-tight">{report.tokoName}</td>
-                          <td className="px-6 py-6 text-sm text-slate-600 max-w-[350px] leading-relaxed line-clamp-3">{report.indicator}</td>
-                          <td className="px-6 py-6">
-                             <div className={`px-2 py-1.5 rounded-lg border text-center min-w-[80px] ${report.riskLevel.includes('P1') ? 'bg-red-50 border-red-100 text-red-600' : report.riskLevel.includes('P2') ? 'bg-orange-50 border-orange-100 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-600'}`}>
+                      {reports.map((report) => {
+                        const photoUrls = getPhotoUrls(report.photoUrls);
+                        return (
+                          <tr key={report.id} className="hover:bg-slate-50/50 transition duration-150 align-top">
+                            <td className="px-6 py-6 font-bold text-[#5850ec] text-sm whitespace-nowrap pt-8">{report.id}</td>
+                            <td className="px-6 py-6 pt-8">
+                              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border w-fit ${report.status === ReportStatus.PENDING ? 'bg-[#fff7ed] border-[#ffedd5]' : report.status === ReportStatus.ON_PROGRESS ? 'bg-blue-50 border-blue-100' : 'bg-green-50 border-green-100'}`}>
+                                <svg className={`w-3.5 h-3.5 ${report.status === ReportStatus.PENDING ? 'text-[#f97316]' : report.status === ReportStatus.ON_PROGRESS ? 'text-blue-500' : 'text-green-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${report.status === ReportStatus.PENDING ? 'text-[#f97316]' : report.status === ReportStatus.ON_PROGRESS ? 'text-blue-500' : 'text-green-500'}`}>{report.status}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 text-sm font-semibold text-slate-500 whitespace-nowrap pt-8">{report.date}</td>
+                            <td className="px-6 py-6 font-black text-slate-800 text-sm max-w-[200px] leading-tight pt-8">{report.tokoName}</td>
+                            <td className="px-6 py-6 text-sm text-slate-600 max-w-[350px] leading-relaxed pt-8">{report.indicator}</td>
+                            <td className="px-6 py-6 pt-8">
+                              <div className={`px-2 py-1.5 rounded-lg border text-center min-w-[80px] ${report.riskLevel.includes('P1') ? 'bg-red-50 border-red-100 text-red-600' : report.riskLevel.includes('P2') ? 'bg-orange-50 border-orange-100 text-orange-600' : 'bg-blue-50 border-blue-100 text-blue-600'}`}>
                                 <p className="text-[9px] font-black leading-tight uppercase">{report.riskLevel.split(' - ')[0]}</p>
                                 <p className="text-[8px] font-bold opacity-80 uppercase leading-tight">{report.riskLevel.split(' - ')[1]}</p>
-                             </div>
-                          </td>
-                          <td className="px-6 py-6 text-[11px] text-slate-400 italic font-medium max-w-[250px] leading-relaxed">
-                             {report.businessImpact}
-                          </td>
-                          {/* Memperlebar kolom rekomendasi secara horizontal agar baris tetap ramping */}
-                          <td className="px-6 py-6 min-w-[600px] max-w-[800px]">
-                             <div className="text-[10px] font-bold text-slate-700 leading-relaxed max-h-[140px] overflow-y-auto pr-2 whitespace-pre-line custom-scrollbar">
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 text-[11px] text-slate-400 italic font-medium max-w-[250px] leading-relaxed pt-8">
+                              {report.businessImpact}
+                            </td>
+                            <td className="px-6 py-6 min-w-[600px] max-w-[800px] pt-8">
+                              <div className="text-[10px] font-bold text-slate-700 leading-relaxed whitespace-pre-line text-justify pr-2">
                                 {report.recommendation}
-                             </div>
-                          </td>
-                          <td className="px-6 py-6">
-                             <button 
-                                onClick={() => handleOpenPhoto(report.photoUrls)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-[#5850ec] text-white rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 whitespace-nowrap"
-                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                <span className="text-[10px] font-black tracking-widest uppercase">Buka Drive</span>
-                             </button>
-                          </td>
-                          <td className={`px-6 py-6 text-sm text-center ${report.department !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.department || '-'}</td>
-                          <td className={`px-6 py-6 text-sm text-center ${report.pic !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.pic || '-'}</td>
-                          <td className={`px-6 py-6 text-sm text-center ${report.plannedDate !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.plannedDate || '-'}</td>
-                          <td className={`px-6 py-6 text-sm text-center ${report.targetDate !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.targetDate || '-'}</td>
-                          <td className={`px-6 py-6 text-sm text-center ${report.completionDate !== '-' ? 'font-black text-green-500' : 'font-bold text-slate-300'}`}>{report.completionDate || '-'}</td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                            {/* Column Foto Drive diperbarui untuk menampilkan tombol vertikal */}
+                            <td className="px-6 py-6 pt-8">
+                              <div className="flex flex-col gap-2 min-w-[120px]">
+                                {photoUrls.length > 0 ? photoUrls.map((url, idx) => (
+                                  <button 
+                                    key={idx}
+                                    onClick={() => window.open(url, '_blank')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-[#5850ec] text-white rounded-xl hover:bg-indigo-700 transition shadow-md whitespace-nowrap w-fit"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                    <span className="text-[9px] font-black tracking-widest uppercase">Foto {idx + 1}</span>
+                                  </button>
+                                )) : <span className="text-slate-300 font-bold text-[10px] italic">No Photos</span>}
+                              </div>
+                            </td>
+                            <td className={`px-6 py-6 text-sm text-center pt-8 ${report.department !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.department || '-'}</td>
+                            <td className={`px-6 py-6 text-sm text-center pt-8 ${report.pic !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.pic || '-'}</td>
+                            <td className={`px-6 py-6 text-sm text-center pt-8 ${report.plannedDate !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.plannedDate || '-'}</td>
+                            <td className={`px-6 py-6 text-sm text-center pt-8 ${report.targetDate !== '-' ? 'font-black text-slate-700' : 'font-bold text-slate-300'}`}>{report.targetDate || '-'}</td>
+                            <td className={`px-6 py-6 text-sm text-center pt-8 ${report.completionDate !== '-' ? 'font-black text-green-500' : 'font-bold text-slate-300'}`}>{report.completionDate || '-'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, LeakReport } from './types';
 import LoginPage from './components/LoginPage';
@@ -20,8 +21,8 @@ const App: React.FC = () => {
 
     try {
       const [resTickets, resUsers] = await Promise.all([
-        fetch(`${GAS_WEB_APP_URL}?sheet=Ticket`),
-        fetch(`${GAS_WEB_APP_URL}?sheet=Users`)
+        fetch(`${GAS_WEB_APP_URL}?sheet=Ticket`, { mode: 'cors' }),
+        fetch(`${GAS_WEB_APP_URL}?sheet=Users`, { mode: 'cors' })
       ]);
 
       const tickets = await resTickets.json();
@@ -56,12 +57,15 @@ const App: React.FC = () => {
   };
 
   const handleAddReport = async (newReport: LeakReport) => {
+    // Update local state immediately for better responsive UI
     setReports(prev => [newReport, ...prev]);
 
     try {
-      await fetch(GAS_WEB_APP_URL, {
+      // Menggunakan mode: 'cors' dengan text/plain adalah 'simple request' yang tidak memicu preflight OPTIONS,
+      // namun memungkinkan browser mengikuti redirect (302) dari Google Apps Script dengan lebih stabil dibanding 'no-cors'.
+      const response = await fetch(GAS_WEB_APP_URL, {
         method: 'POST',
-        mode: 'no-cors', 
+        mode: 'cors', 
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ 
           action: 'add', 
@@ -70,9 +74,16 @@ const App: React.FC = () => {
         })
       });
       
-      setTimeout(fetchAllData, 6000);
+      // Jika request berhasil dikirim
+      if (response.ok) {
+        // Beri waktu sejenak agar GAS memproses file Drive sebelum refresh data
+        setTimeout(fetchAllData, 5000);
+      }
     } catch (e) {
+      // Jika terjadi error network (seperti 'Failed to fetch')
       console.error("Gagal simpan tiket:", e);
+      // Tetap panggil fetchAllData setelah delay untuk memastikan sinkronisasi
+      setTimeout(fetchAllData, 8000);
     }
   };
 
@@ -82,7 +93,7 @@ const App: React.FC = () => {
     try {
       await fetch(GAS_WEB_APP_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        mode: 'cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ 
           action: 'update', 
@@ -90,7 +101,7 @@ const App: React.FC = () => {
           emailType: emailType 
         })
       });
-      setTimeout(fetchAllData, 3000);
+      setTimeout(fetchAllData, 2000);
     } catch (e) {
       console.error("Gagal update tiket:", e);
     }

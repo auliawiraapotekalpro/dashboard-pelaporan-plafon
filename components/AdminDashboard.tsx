@@ -96,7 +96,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, reports, onUpdate
 
         <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto h-full">
-            <table className="w-full border-collapse min-w-[2400px]">
+            <table className="w-full border-collapse min-w-[2600px]">
               <thead className="sticky top-0 z-10 bg-[#f8fafc] text-[#94a3b8] text-[9px] font-black uppercase tracking-widest text-left">
                 <tr>
                   <th className="px-4 py-5 border-b border-slate-100 w-24">ID TIKET</th>
@@ -112,7 +112,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, reports, onUpdate
                   <th className="px-4 py-5 border-b border-slate-100 w-32">PIC</th>
                   <th className="px-4 py-5 border-b border-slate-100 w-32">RENCANA</th>
                   <th className="px-4 py-5 border-b border-slate-100 w-32">TARGET</th>
-                  <th className="px-4 py-5 border-b border-slate-100 w-48">AKSI</th>
+                  <th className="px-4 py-5 border-b border-slate-100 w-56">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -127,7 +127,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, reports, onUpdate
                       <td className="px-4 py-6 text-[10px] font-bold text-slate-400 text-center pt-8">{report.date}</td>
                       <td className="px-4 py-6 font-black text-slate-800 text-xs uppercase leading-tight pt-8">{report.tokoName}</td>
                       
-                      {/* Kolom Indikator - Dibuat menyamping dengan lebar yang cukup */}
                       <td className="px-4 py-6 text-[11px] text-slate-600 leading-relaxed pt-8 text-justify pr-6">
                         {report.indicator}
                       </td>
@@ -139,7 +138,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, reports, onUpdate
                          </div>
                       </td>
 
-                      {/* Kolom Dampak Bisnis - Dibuat menyamping agar tidak menumpuk */}
                       <td className="px-4 py-6 text-[10px] text-slate-400 italic leading-snug pt-8 text-justify pr-6">
                         {report.businessImpact}
                       </td>
@@ -169,6 +167,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, reports, onUpdate
                       <td className="px-4 py-6 pt-8"><input type="date" value={report.targetDate === '-' ? '' : report.targetDate} onChange={(e) => handleInlineChange(report.id, { targetDate: e.target.value })} className="bg-white border border-slate-200 p-2 rounded-xl text-[10px] font-bold w-full outline-none"/></td>
                       <td className="px-4 py-6 pt-8">
                          <div className="flex gap-1.5">
+                            <button onClick={() => alert('Mode Edit Aktif')} className="px-3 py-2 bg-amber-500 text-white rounded-xl font-black text-[9px] shadow-md tracking-widest">EDIT</button>
                             <button disabled={report.status !== ReportStatus.PENDING} onClick={() => handleSubmitAction(report)} className={`px-3 py-2 rounded-xl font-black text-[9px] tracking-widest ${report.status === ReportStatus.PENDING ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}>SUBMIT</button>
                             <button disabled={report.status === ReportStatus.COMPLETED} onClick={() => handleFinishAction(report)} className="px-3 py-2 bg-green-600 text-white rounded-xl font-black text-[9px] shadow-md tracking-widest">DONE</button>
                          </div>
