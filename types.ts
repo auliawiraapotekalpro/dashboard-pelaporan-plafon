@@ -6,23 +6,19 @@ export enum ReportStatus {
   REJECTED = 'REJECTED'
 }
 
-/**
- * Fix: Added UserRole enum to resolve 'no exported member' error in constants.tsx
- */
 export enum UserRole {
   TOKO = 'TOKO',
   ADMIN = 'ADMIN'
 }
 
 export interface User {
-  id: string;      // ID Unik (Misal: toko-1)
-  /**
-   * Fix: Added name property to resolve missing property errors in constants.tsx, TokoDashboard.tsx, and AdminDashboard.tsx
-   */
-  name: string;    // Nama Toko / User
+  id: string;
+  name: string;
   password?: string;
-  role: string;    // OUTLET, PELAPOR, ADMIN
+  role: string;
   email?: string;
+  amName?: string;
+  amEmail?: string;
 }
 
 export interface LeakReport {
@@ -45,4 +41,5 @@ export interface LeakReport {
   plannedDate?: string;
   targetDate?: string;
   completionDate?: string;
+  beritaAcara?: string; 
 }

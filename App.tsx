@@ -5,7 +5,7 @@ import LoginPage from './components/LoginPage';
 import TokoDashboard from './components/TokoDashboard';
 import AdminDashboard from './components/AdminDashboard';
 
-const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzml9XVsvhST-y448PlWEzGU_hRPpc3OpzJ8NBmoRfVMd-m67EexpuL8ngr1c3rwjBhpQ/exec";
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyUwPGo5FrnTbTXeFNKvVhwnSA-nVVZnZ9UY1ROrRgLlK2j3iW9GmJt_HNhTx6WZbgD1A/exec";
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -33,7 +33,14 @@ const App: React.FC = () => {
         name: u.name || u.id 
       })) : [];
 
-      setReports(Array.isArray(tickets) ? tickets : []);
+      if (Array.isArray(tickets)) {
+        setReports(prev => {
+          const serverTicketMap = new Map(tickets.map((t: any) => [String(t.id).trim().toUpperCase(), t]));
+          const localOnlyTickets = prev.filter(p => !serverTicketMap.has(String(p.id).trim().toUpperCase()));
+          return [...tickets, ...localOnlyTickets];
+        });
+      }
+      
       setDbUsers(users);
     } catch (error) {
       console.error("Gagal sinkronisasi data:", error);
@@ -57,12 +64,10 @@ const App: React.FC = () => {
   };
 
   const handleAddReport = async (newReport: LeakReport) => {
-    // Update local state immediately for better responsive UI
+    // Optimistic UI update
     setReports(prev => [newReport, ...prev]);
 
     try {
-      // Menggunakan mode: 'cors' dengan text/plain adalah 'simple request' yang tidak memicu preflight OPTIONS,
-      // namun memungkinkan browser mengikuti redirect (302) dari Google Apps Script dengan lebih stabil dibanding 'no-cors'.
       const response = await fetch(GAS_WEB_APP_URL, {
         method: 'POST',
         mode: 'cors', 
@@ -70,25 +75,25 @@ const App: React.FC = () => {
         body: JSON.stringify({ 
           action: 'add', 
           data: newReport,
-          emailType: 'NEW' 
+          emailType: 'NEW' // Pastikan trigger email 'NEW' terkirim
         })
       });
       
-      // Jika request berhasil dikirim
       if (response.ok) {
-        // Beri waktu sejenak agar GAS memproses file Drive sebelum refresh data
-        setTimeout(fetchAllData, 5000);
+        console.log("Laporan terkirim dan email diproses backend.");
+        setTimeout(fetchAllData, 3000);
       }
     } catch (e) {
-      // Jika terjadi error network (seperti 'Failed to fetch')
-      console.error("Gagal simpan tiket:", e);
-      // Tetap panggil fetchAllData setelah delay untuk memastikan sinkronisasi
-      setTimeout(fetchAllData, 8000);
+      console.error("Gagal simpan tiket ke cloud:", e);
+      setTimeout(fetchAllData, 5000);
     }
   };
 
   const handleUpdateReport = async (updatedReport: LeakReport, emailType?: string) => {
-    setReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
+    setReports(prev => prev.map(r => 
+      String(r.id).trim().toUpperCase() === String(updatedReport.id).trim().toUpperCase() 
+      ? updatedReport : r
+    ));
 
     try {
       await fetch(GAS_WEB_APP_URL, {
@@ -112,8 +117,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f7fa]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-opacity-25 border-r-indigo-600 mb-4"></div>
         <p className="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase text-center">
-          Menghubungkan ke Cloud Maintenance...<br/>
-          <span className="text-[10px] opacity-50 font-normal">Sistem Email Otomatis Sedang Disiapkan</span>
+          Sinkronisasi Cloud Maintenance...
         </p>
       </div>
     );
@@ -124,13 +128,16 @@ const App: React.FC = () => {
   }
 
   const isAdmin = user.role && user.role.toUpperCase().includes('ADMIN');
+  const myReports = !isAdmin 
+    ? reports.filter(r => String(r.tokoId).trim().toLowerCase() === String(user.id).trim().toLowerCase())
+    : reports;
 
   return (
     <div className="min-h-screen bg-[#f3f7fa]">
       {!isAdmin ? (
         <TokoDashboard 
           user={user} 
-          reports={reports.filter(r => r.tokoId === user.id)}
+          reports={myReports}
           onAddReport={handleAddReport}
           onLogout={handleLogout} 
         />

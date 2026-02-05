@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User } from '../types';
 
@@ -10,6 +11,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, dbUsers }) => {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
+
+  // Mengurutkan user berdasarkan ID (nama toko) secara alfabetis
+  const sortedUsers = [...dbUsers].sort((a, b) => a.id.localeCompare(b.id));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +53,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, dbUsers }) => {
                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-2xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 appearance-none cursor-pointer font-bold"
               >
                 <option value="">-- PILIH AKUN --</option>
-                {dbUsers.map((user) => (
+                {sortedUsers.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.id} ({user.role})
                   </option>
