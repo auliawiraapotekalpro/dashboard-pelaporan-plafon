@@ -164,7 +164,7 @@ const TokoDashboard: React.FC<TokoDashboardProps> = ({ user, reports, onAddRepor
         {activeTab === 'FORM' ? (
           <div className="h-full overflow-y-auto pb-10">
             <form onSubmit={handleSubmit} className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
-               <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-100 flex flex-col gap-4">
+               <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-100 flex flex-col gap-4 h-fit">
                   <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-sm">1</span>
                     Identitas
@@ -184,22 +184,30 @@ const TokoDashboard: React.FC<TokoDashboardProps> = ({ user, reports, onAddRepor
                   </select>
                   {currentLogic && (
                     <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
-                      <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                        <p className="text-[9px] font-black text-indigo-500 uppercase mb-1">Resiko & Dampak</p>
-                        <p className="text-xs font-black text-indigo-800 mb-1">{currentLogic.risk}</p>
-                        <p className="text-[10px] text-indigo-600 italic font-medium leading-relaxed">{currentLogic.impact}</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                          <p className="text-[9px] font-black text-red-500 uppercase mb-1 tracking-widest">Level Resiko</p>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${currentLogic.risk.includes('P1') ? 'bg-red-500 animate-pulse' : currentLogic.risk.includes('P2') ? 'bg-orange-500' : 'bg-blue-500'}`}></div>
+                            <p className="text-sm font-black text-red-800">{currentLogic.risk}</p>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                          <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Dampak Ke Bisnis</p>
+                          <p className="text-[11px] text-slate-600 italic font-medium leading-relaxed">{currentLogic.impact}</p>
+                        </div>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-4">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2">Rekomendasi Tindakan :</p>
                         {parseRecommendations(currentLogic.recommendation).map((rec, i) => {
                           const [title, ...desc] = rec.split(':');
                           return (
-                            <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 items-start">
-                              <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 mt-0.5 shadow-sm">
+                            <div key={i} className="flex gap-3 p-3 bg-white rounded-xl border border-slate-100 items-start shadow-sm">
+                              <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 mt-0.5 shadow-sm font-bold">
                                 {i + 1}
                               </div>
                               <div>
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{title}</p>
+                                <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{title}</p>
                                 <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{desc.join(':')}</p>
                               </div>
                             </div>
@@ -210,7 +218,7 @@ const TokoDashboard: React.FC<TokoDashboardProps> = ({ user, reports, onAddRepor
                   )}
                </div>
 
-               <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-100 flex flex-col gap-4">
+               <div className="bg-white rounded-[2rem] shadow-lg p-6 border border-slate-100 flex flex-col gap-4 h-fit">
                   <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm">3</span>
                     Foto
