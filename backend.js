@@ -5,35 +5,8 @@
 const SPREADSHEET_ID = "1fcxDoBqRRNhZc2NmpgOs0HcURtNt6T7EnNcT7ryPSPc";
 const DRIVE_ROOT_FOLDER_ID = "1VILFbKdKh46tJIZQ5JNqO3Oi16cKIe0E";
 
-// Daftar email tambahan untuk pengawasan (pisahkan dengan koma)
-const ADMIN_CC = "hendri@example.com,septian@example.com";
-
-/**
- * Fungsi untuk testing manual di editor GAS guna memicu izin email
- */
-function testEmail() {
-  const testData = {
-    id: "TKT-1322",
-    tokoId: "toko-1",
-    tokoName: "APOTEK ALPRO BANGBARUNG RAYA",
-    indicator: "Plafon roboh di area publik/apoteker, kabel terbakar, atau bocor tepat di atas stok obat mahal/kulkas vaksin.",
-    riskLevel: "P1 - CRITICAL",
-    businessImpact: "Operasional berhenti sebagian/total, risiko cedera manusia, kerugian stok masif.",
-    recommendation: "Perbaikan darurat sumber kebocoran dan penggantian total plafon yang roboh.",
-    photoUrls: []
-  };
-  
-  // Cek Kuota Sebelum Test
-  const quota = MailApp.getRemainingDailyQuota();
-  console.log("Sisa Kuota Email Hari Ini: " + quota);
-  
-  if (quota > 0) {
-    sendProfessionalEmail(testData, "NEW");
-    console.log("Email test dikirim. Silakan cek folder 'Terkirim' di Gmail Anda.");
-  } else {
-    console.error("Gagal: Kuota email harian Anda sudah habis (0). Silakan tunggu 24 jam.");
-  }
-}
+// Daftar email tambahan untuk pengawasan (Hardcoded CC)
+const ADMIN_CC = "hendri@example.com, septian@example.com"; 
 
 function doPost(e) {
   try {
@@ -46,6 +19,9 @@ function doPost(e) {
     const sheet = ss.getSheetByName("Ticket");
 
     if (action === "add") {
+      const quota = MailApp.getRemainingDailyQuota();
+      if (quota <= 0) throw new Error("LIMIT_EMAIL_TERCAPAI");
+
       const finalPhotoUrls = [];
       if (data.photoUrls && Array.isArray(data.photoUrls)) {
         data.photoUrls.forEach((base64, i) => {
@@ -70,9 +46,7 @@ function doPost(e) {
       });
       sheet.appendRow(newRow);
 
-      // KIRIM EMAIL OTOMATIS
       sendProfessionalEmail(data, "NEW");
-      
       return ContentService.createTextOutput(JSON.stringify({status: "success", id: data.id})).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -85,6 +59,12 @@ function doPost(e) {
       for (let i = 1; i < values.length; i++) {
         if (String(values[i][idIdx]).trim().toUpperCase() === String(data.id).trim().toUpperCase()) {
           const rowNum = i + 1;
+          
+          if (emailType) {
+            const quota = MailApp.getRemainingDailyQuota();
+            if (quota <= 0) throw new Error("LIMIT_EMAIL_TERCAPAI");
+          }
+
           cleanHeaders.forEach((h, colIdx) => {
             if (data.hasOwnProperty(h)) {
               let val = data[h];
@@ -99,7 +79,6 @@ function doPost(e) {
       }
     }
   } catch (err) {
-    console.error("Error di doPost: " + err.toString());
     return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -107,7 +86,7 @@ function doPost(e) {
 function normalizeHeader(h) {
   const low = String(h).toLowerCase().trim();
   if (low === "id" || low.includes("id (") || low.includes("id tiket")) return "id";
-  if (low.includes("tokoid")) return "tokoId";
+  if (low.includes("tokoid") || (low.includes("toko") && low.includes("id"))) return "tokoId";
   if (low.includes("tokoname") || low.includes("nama toko")) return "tokoName";
   if (low.includes("status")) return "status";
   if (low.includes("planneddate") || low.includes("rencana")) return "plannedDate";
@@ -125,9 +104,18 @@ function normalizeHeader(h) {
   if (low.includes("password")) return "password";
   if (low.includes("role")) return "role";
   if (low.includes("amname")) return "amName";
-  if (low.includes("amemail")) return "amEmail";
+  if (low.includes("amemail") || (low.includes("am") && low.includes("email"))) return "amEmail";
   if (low.includes("email") && !low.includes("am")) return "email";
   return h;
+}
+
+function formatDateForEmail(d) {
+  if (!d || d === '-') return '-';
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return Utilities.formatDate(date, "GMT+7", "dd MMM yyyy");
+  } catch(e) { return d; }
 }
 
 function saveBase64ToDrive(base64Data, fileName, shopName) {
@@ -147,12 +135,8 @@ function saveBase64ToDrive(base64Data, fileName, shopName) {
 }
 
 function sendProfessionalEmail(report, type) {
-  // 1. CEK KUOTA HARIAN TERLEBIH DAHULU
   const quota = MailApp.getRemainingDailyQuota();
-  if (quota <= 0) {
-    console.error("Gagal kirim email: Kuota harian Google sudah habis.");
-    return; // Keluar dari fungsi agar tidak error 'Too many times'
-  }
+  if (quota <= 0) throw new Error("LIMIT_EMAIL_TERCAPAI");
 
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -166,7 +150,7 @@ function sendProfessionalEmail(report, type) {
     const emailIdx = headers.indexOf("email");
     const amEmailIdx = headers.indexOf("amEmail");
 
-    // FIX: Gunakan storeRow yang benar
+    // Cari data Toko untuk mendapatkan email Toko & AM
     const storeRow = dataRows.find(row => 
       String(row[idIdx]).trim().toLowerCase() === String(report.tokoId).trim().toLowerCase()
     );
@@ -174,50 +158,96 @@ function sendProfessionalEmail(report, type) {
     const storeEmail = storeRow && emailIdx !== -1 ? String(storeRow[emailIdx]).trim() : "";
     const amEmail = storeRow && amEmailIdx !== -1 ? String(storeRow[amEmailIdx]).trim() : "";
     
+    // Ambil SEMUA email Admin dari sheet Users
     const adminEmails = dataRows
       .filter(row => String(row[roleIdx]).toUpperCase().includes("ADMIN"))
       .map(row => (emailIdx !== -1 ? String(row[emailIdx]).trim() : ""))
       .filter(e => e && e.includes("@"));
 
-    const separator = "==================================================";
-    
+    // --- Kumpulkan Semua Penerima Menjadi Satu Jalur ---
+    const allRecipients = [];
+    if (storeEmail && storeEmail.includes("@")) allRecipients.push(storeEmail);
+    if (amEmail && amEmail.includes("@")) allRecipients.push(amEmail);
+    adminEmails.forEach(e => {
+      if(e && !allRecipients.includes(e)) allRecipients.push(e);
+    });
+
+    if (allRecipients.length === 0) return;
+
+    // Formatting Rekomendasi
+    let formattedRecs = "";
+    if (report.recommendation && report.recommendation !== "-") {
+      formattedRecs = report.recommendation.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => {
+          if (line.includes(':')) {
+            const parts = line.split(':');
+            return `• ${parts[0].trim()}: ${parts.slice(1).join(':').trim()}`;
+          }
+          return `• ${line}`;
+        }).join('\n');
+    } else {
+      formattedRecs = "-";
+    }
+
+    // Formatting Foto
     let photoSection = "";
     if (report.photoUrls && Array.isArray(report.photoUrls) && report.photoUrls.length > 0) {
       report.photoUrls.forEach((url, i) => { 
-        if(url && url.startsWith('http')) photoSection += `   [>] Foto ${i + 1}: ${url}\n`; 
+        if(url && url.startsWith('http')) photoSection += `   [>] Foto ${i + 1}:${url}\n`; 
       });
     } else { photoSection = "   (Tidak ada foto tersedia)"; }
 
-    let detailInfoList = `* ID Tiket   : ${report.id}
-* Toko       : ${report.tokoName}
-* Indikator  : ${report.indicator}`;
+    const separator = "==================================================";
+    
+    // --- Tentukan Intro dan Subjek Berdasarkan Tipe ---
+    let intro = "";
+    let subject = "";
 
     if (type === "NEW") {
-      detailInfoList += `\n* Resiko     : ${report.riskLevel}\n* Dampak     : ${report.businessImpact}`;
+      intro = `Halo, ada 1 ticket yang masuk dari ${report.tokoName} untuk perbaikan. Petugas akan segera melakukan pengecekan.`;
+      subject = `[NEW TICKET] ${report.tokoName} - #${report.id}`;
+    } else if (type === "SCHEDULED") {
+      intro = "Halo, jadwal dan rencana pengerjaan untuk tiket ini telah diperbarui oleh Admin.";
+      subject = `[JADWAL PENGERJAAN] ${report.tokoName} - #${report.id}`;
+    } else if (type === "COMPLETED") {
+      intro = "Kabar baik! Pekerjaan perbaikan plafon telah selesai dilaksanakan dan tiket kini ditutup.";
+      subject = `[PENGERJAAN SELESAI] ${report.tokoName} - #${report.id}`;
     }
 
+    // --- Susun Detail Block ---
+    let detailBlock = `Informasi Tiket:
+* ID Tiket	: ${report.id}
+* Toko		: ${report.tokoName}
+* Indikator	: ${report.indicator}
+* Level Resiko	: ${report.riskLevel ? (report.riskLevel.includes(' - ') ? report.riskLevel.split(' - ')[1] : report.riskLevel) : "-"}
+* Dampak Bisnis	: ${report.businessImpact || "-"}
+* Rekomendasi	: ${formattedRecs}`;
+
     if (type === "SCHEDULED" || type === "COMPLETED") {
-      detailInfoList += `\n* Dept       : ${report.department || "-"}\n* PIC        : ${report.pic || "-"}\n* Rencana    : ${report.plannedDate || "-"}\n* Target     : ${report.targetDate || "-"}`;
+      detailBlock += `
+* Departement	: ${report.department || "-"}
+* PIC		: ${report.pic || "-"}
+* Rencana tgl	: ${formatDateForEmail(report.plannedDate)}
+* Target selesai: ${formatDateForEmail(report.targetDate)}`;
     }
 
     if (type === "COMPLETED") {
-      detailInfoList += `\n* Berita Acara: ${report.beritaAcara || "-"}`;
+      detailBlock += `
+* Berita Acara	: ${report.beritaAcara || "-"}`;
     }
 
-    const introText = type === "NEW" 
-      ? "Halo, laporan kebocoran baru telah diterima. Petugas akan segera melakukan pengecekan."
-      : "Halo, ada pembaruan status pada laporan kebocoran Anda.";
-
+    // --- Gabungkan Seluruh Isi Email ---
     const emailBody = `Yth. Rekan Terkait,
 
-${introText}
+${intro}
 
 ${separator}
 DETAIL LAPORAN PELAPORAN
 ${separator}
 
-Informasi Tiket:
-${detailInfoList}
+${detailBlock}
 
 ${separator}
 BUKTI FOTO DOKUMENTASI
@@ -229,28 +259,11 @@ Silakan cek dashboard untuk detail lebih lanjut.
 Terima kasih,
 Sistem Maintenance Pelaporan Plafon`;
 
-    let subject = "";
-    if (type === "NEW") subject = `[TICKET DITERIMA] ${report.tokoName} - #${report.id}`;
-    else if (type === "SCHEDULED") subject = `[JADWAL PENGERJAAN] ${report.tokoName} - #${report.id}`;
-    else if (type === "COMPLETED") subject = `[PENGERJAAN SELESAI] ${report.tokoName} - #${report.id}`;
-
-    const recipients = [];
-    if (storeEmail && storeEmail.includes("@")) recipients.push(storeEmail);
-    if (amEmail && amEmail.includes("@")) recipients.push(amEmail);
-    
-    if (type === "NEW") {
-       adminEmails.forEach(e => { if(e && !recipients.includes(e)) recipients.push(e); });
-    }
-
-    // Eksekusi pengiriman hanya jika ada penerima
-    if (recipients.length > 0) {
-      GmailApp.sendEmail(recipients.join(","), subject, emailBody, { cc: ADMIN_CC });
-    } else if (adminEmails.length > 0) {
-      GmailApp.sendEmail(adminEmails.join(","), subject, emailBody, { cc: ADMIN_CC });
-    }
+    // --- Kirim Satu Email Untuk Semua ---
+    GmailApp.sendEmail(allRecipients.join(","), subject, emailBody, ADMIN_CC ? { cc: ADMIN_CC } : {});
 
   } catch (e) { 
-    console.error("Gagal kirim email: " + e.message); 
+    throw e; 
   }
 }
 
@@ -276,7 +289,7 @@ function doGet(e) {
       return obj;
     });
     return createJsonResponse(json);
-  } catch(err) { return createJsonResponse({error: err.toString()}); }
+  } catch(err) { return createJsonResponse({status: "error", message: err.toString()}); }
 }
 
 function createJsonResponse(data) {

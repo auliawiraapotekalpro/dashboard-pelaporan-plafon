@@ -5,7 +5,15 @@ import LoginPage from './components/LoginPage';
 import TokoDashboard from './components/TokoDashboard';
 import AdminDashboard from './components/AdminDashboard';
 
-const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyUwPGo5FrnTbTXeFNKvVhwnSA-nVVZnZ9UY1ROrRgLlK2j3iW9GmJt_HNhTx6WZbgD1A/exec";
+/**
+ * DAFTAR URL APP SCRIPT (FAILOVER SYSTEM)
+ * Menggunakan URL yang diberikan oleh pengguna.
+ */
+const GAS_WEB_APP_URLS = [
+  "https://script.google.com/macros/s/AKfycbwX8a08ZQgCX5aAZTutNmoJ2sHFZxTSHq82YpYpQqZOpSFlCWkJ3a-iGkyEYHuUoco6gA/exec",
+  "https://script.google.com/macros/s/AKfycbzAjQqJbboHIZ5kMuTMZ-LDjO34c0q76RLfsNT4ZP51OGArHpjJxEYbRPM1o4WYT6o/exec",
+  "https://script.google.com/macros/s/AKfycbzg8p2x5QzkNp4mN3Azyr70aV7ebOwXJrcrX_ZkLrHDSEPRBhLj9fusVeJJdOr-GQlWPA/exec",
+]; 
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -13,19 +21,49 @@ const App: React.FC = () => {
   const [reports, setReports] = useState<LeakReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchWithFailover = async (queryParam: string = "", options: RequestInit = {}): Promise<Response> => {
+    let lastError: any = null;
+
+    for (let i = 0; i < GAS_WEB_APP_URLS.length; i++) {
+      const baseUrl = GAS_WEB_APP_URLS[i];
+      if (!baseUrl) continue;
+
+      const fullUrl = queryParam ? `${baseUrl}${queryParam}` : baseUrl;
+      
+      try {
+        const response = await fetch(fullUrl, options);
+        
+        if (response.ok) {
+          const clonedResponse = response.clone();
+          const contentType = response.headers.get("content-type");
+          
+          if (contentType && contentType.includes("application/json")) {
+            const result = await clonedResponse.json();
+            if (result && result.status === "error") {
+              console.warn(`API Index ${i} gagal secara internal: ${result.message}`);
+              continue; 
+            }
+          }
+          return response;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error("Semua URL App Script gagal diakses.");
+  };
+
   const fetchAllData = async () => {
-    if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("YOUR_ID_HERE")) {
+    if (GAS_WEB_APP_URLS.length === 0) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const [resTickets, resUsers] = await Promise.all([
-        fetch(`${GAS_WEB_APP_URL}?sheet=Ticket`, { mode: 'cors' }),
-        fetch(`${GAS_WEB_APP_URL}?sheet=Users`, { mode: 'cors' })
-      ]);
-
+      const resTickets = await fetchWithFailover("?sheet=Ticket", { mode: 'cors' });
       const tickets = await resTickets.json();
+
+      const resUsers = await fetchWithFailover("?sheet=Users", { mode: 'cors' });
       const usersRaw = await resUsers.json();
       
       const users = Array.isArray(usersRaw) ? usersRaw.map((u: any) => ({
@@ -40,7 +78,6 @@ const App: React.FC = () => {
           return [...tickets, ...localOnlyTickets];
         });
       }
-      
       setDbUsers(users);
     } catch (error) {
       console.error("Gagal sinkronisasi data:", error);
@@ -64,47 +101,31 @@ const App: React.FC = () => {
   };
 
   const handleAddReport = async (newReport: LeakReport) => {
-    // Optimistic UI update
     setReports(prev => [newReport, ...prev]);
-
     try {
-      const response = await fetch(GAS_WEB_APP_URL, {
+      await fetchWithFailover("", {
         method: 'POST',
         mode: 'cors', 
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ 
-          action: 'add', 
-          data: newReport,
-          emailType: 'NEW' // Pastikan trigger email 'NEW' terkirim
-        })
+        body: JSON.stringify({ action: 'add', data: newReport, emailType: 'NEW' })
       });
-      
-      if (response.ok) {
-        console.log("Laporan terkirim dan email diproses backend.");
-        setTimeout(fetchAllData, 3000);
-      }
+      setTimeout(fetchAllData, 3000);
     } catch (e) {
-      console.error("Gagal simpan tiket ke cloud:", e);
-      setTimeout(fetchAllData, 5000);
+      alert("Gagal mengirim laporan. Cek koneksi atau limit email.");
     }
   };
 
   const handleUpdateReport = async (updatedReport: LeakReport, emailType?: string) => {
     setReports(prev => prev.map(r => 
-      String(r.id).trim().toUpperCase() === String(updatedReport.id).trim().toUpperCase() 
-      ? updatedReport : r
+      String(r.id).trim().toUpperCase() === String(updatedReport.id).trim().toUpperCase() ? updatedReport : r
     ));
 
     try {
-      await fetch(GAS_WEB_APP_URL, {
+      await fetchWithFailover("", {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ 
-          action: 'update', 
-          data: updatedReport,
-          emailType: emailType 
-        })
+        body: JSON.stringify({ action: 'update', data: updatedReport, emailType: emailType })
       });
       setTimeout(fetchAllData, 2000);
     } catch (e) {
@@ -116,16 +137,12 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f7fa]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-indigo-600 border-opacity-25 border-r-indigo-600 mb-4"></div>
-        <p className="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase text-center">
-          Sinkronisasi Cloud Maintenance...
-        </p>
+        <p className="text-slate-500 font-bold animate-pulse text-xs tracking-widest uppercase">Sinkronisasi Cloud...</p>
       </div>
     );
   }
 
-  if (!user) {
-    return <LoginPage onLogin={handleLogin} dbUsers={dbUsers} />;
-  }
+  if (!user) return <LoginPage onLogin={handleLogin} dbUsers={dbUsers} />;
 
   const isAdmin = user.role && user.role.toUpperCase().includes('ADMIN');
   const myReports = !isAdmin 
@@ -135,19 +152,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f3f7fa]">
       {!isAdmin ? (
-        <TokoDashboard 
-          user={user} 
-          reports={myReports}
-          onAddReport={handleAddReport}
-          onLogout={handleLogout} 
-        />
+        <TokoDashboard user={user} reports={myReports} onAddReport={handleAddReport} onLogout={handleLogout} />
       ) : (
-        <AdminDashboard 
-          user={user} 
-          reports={reports}
-          onUpdateReport={handleUpdateReport}
-          onLogout={handleLogout} 
-        />
+        <AdminDashboard user={user} reports={reports} onUpdateReport={handleUpdateReport} onLogout={handleLogout} />
       )}
     </div>
   );
